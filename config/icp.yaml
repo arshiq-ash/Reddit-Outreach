@@ -133,6 +133,10 @@ intent_phrases:
 
 # Scoring knobs.
 scoring:
+  # KEY INDICATOR: number of 1–2★ reviews (or complaint posts) in the last 6 months.
+  min_bad_reviews_6m: 5             # below this a Trustpilot business is dropped
+  bad_review_tiers: [[100, 55], [50, 48], [25, 40], [10, 30], [5, 20], [1, 10]]   # [count, points]
+  category_max_rating: 4.2          # loose prefilter on Trustpilot category pages
   ideal_review_count: [30, 20000]   # growing brands, not tiny shops and not mega-enterprises
   low_rating_threshold: 3.5
   exclude_domains:                  # enterprises unlikely to outsource to a boutique team

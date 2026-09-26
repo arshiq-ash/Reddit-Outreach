@@ -22,6 +22,7 @@ USER_AGENT = os.getenv(
 
 SHEET_COLUMNS = [
     "Lead ID", "Date Found", "Source", "Lead Type", "Company", "Website", "Industry",
+    "Recent Volume", "Bad Reviews (Last 6 Mo)", "Bad Reviews (Prior 6 Mo)", "Trend", "Latest Bad Review",
     "Rating", "Review Count", "Negative Reviews Replied %", "Pain Signals", "Evidence Quote",
     "Evidence URL", "Lead Score", "Priority", "Matching Case Study", "Suggested Pitch",
     "Contact Email", "Contact Phone", "Location", "Status", "Notes",
@@ -89,6 +90,38 @@ def today() -> str:
     return dt.date.today().isoformat()
 
 
+def months_ago(n: int) -> dt.datetime:
+    return dt.datetime.now(dt.timezone.utc) - dt.timedelta(days=round(30.4 * n))
+
+
+def parse_date(value) -> dt.datetime | None:
+    """ISO string or unix timestamp → aware datetime."""
+    if value in (None, ""):
+        return None
+    if isinstance(value, (int, float)):
+        return dt.datetime.fromtimestamp(value, dt.timezone.utc)
+    try:
+        d = dt.datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    return d if d.tzinfo else d.replace(tzinfo=dt.timezone.utc)
+
+
+def volume_tier(bad_6m: int | None) -> str:
+    if bad_6m is None:
+        return ""
+    return "High" if bad_6m >= 50 else "Medium" if bad_6m >= 10 else "Low"
+
+
+def trend_label(recent: int | None, prior: int | None) -> str:
+    if recent is None or prior is None:
+        return ""
+    if prior == 0:
+        return "New / rising" if recent else "Flat"
+    change = (recent - prior) / prior
+    return f"Rising (+{change:.0%})" if change >= 0.2 else f"Falling ({change:.0%})" if change <= -0.2 else "Steady"
+
+
 @dataclass
 class Lead:
     source: str
@@ -100,6 +133,11 @@ class Lead:
     rating: float | None = None
     review_count: int | None = None
     reply_rate: float | None = None
+    bad_6m: int | None = None          # 1–2★ reviews / complaint posts in the last 6 months (key indicator)
+    bad_prev_6m: int | None = None     # same count for the 6 months before that, for the trend
+    latest_bad: str = ""               # ISO date of the newest bad review
+    count_basis: str = ""              # "exact" (scraped) or "sample" (seen via web search)
+    volume_tier: str = ""              # High / Medium / Low; derived from bad_6m when not set by hand
     pain_signals: list[str] = field(default_factory=list)
     evidence_quote: str = ""
     location: str = ""
@@ -125,6 +163,12 @@ class Lead:
             "Company": self.company,
             "Website": self.website,
             "Industry": ind.get("label", ""),
+            "Recent Volume": self.volume_tier or volume_tier(self.bad_6m),
+            "Bad Reviews (Last 6 Mo)": "" if self.bad_6m is None else (
+                self.bad_6m if self.count_basis != "sample" else f"{self.bad_6m}+"),
+            "Bad Reviews (Prior 6 Mo)": "" if self.bad_prev_6m is None else self.bad_prev_6m,
+            "Trend": trend_label(self.bad_6m, self.bad_prev_6m),
+            "Latest Bad Review": self.latest_bad,
             "Rating": "" if self.rating is None else round(self.rating, 1),
             "Review Count": "" if self.review_count is None else self.review_count,
             "Negative Reviews Replied %": "" if self.reply_rate is None else round(self.reply_rate * 100),

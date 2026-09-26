@@ -16,12 +16,30 @@ business owners who are asking for support help. Leads are scored, matched to th
 
 Edit `config/icp.yaml` to change industries, subreddits, Trustpilot/Yelp categories, pain phrases or scoring.
 
+## Key indicator: bad reviews in the last 6 months
+
+A lead's rank depends mainly on **how many 1–2★ reviews or complaint posts it received in the last
+6 months**, not on its lifetime rating. A 4-star brand whose support has recently collapsed is a
+better prospect than a 1-star brand whose complaints are two years old.
+
+| Column | Meaning |
+|---|---|
+| Recent Volume | **High** is 50 or more bad reviews in 6 months, **Medium** is 10–49 and **Low** is under 10. Low leads go to the *Watchlist* tab |
+| Bad Reviews (Last 6 Mo) | Exact count from the scrape. `N+` means a sample (Yelp's API shows only 3 reviews) |
+| Bad Reviews (Prior 6 Mo), Trend | The count for the 6 months before that, and whether complaints are Rising, Steady or Falling |
+| Latest Bad Review | Date of the newest complaint |
+
+Recent volume is worth up to 55 of the 100 score points, plus 10 if complaints are rising. The rest
+comes from the complaints being about support (not the product), the company not replying to
+reviews, its rating, its size and ICP fit. Trustpilot businesses with fewer than 5 bad reviews in
+6 months are dropped. Tune `min_bad_reviews_6m` and `bad_review_tiers` in `config/icp.yaml`.
+
 ## Sources
 
 | Source | How | Lead type |
 |---|---|---|
-| **Trustpilot** | Walks ICP category pages, keeps businesses with TrustScore ≤ 3.5 and 30–20k reviews, then reads their latest 1–2★ reviews for support-pain phrases and checks whether they reply. Also re-checks every domain in `config/watchlist.txt`. Data comes from the page's embedded `__NEXT_DATA__` JSON, so no browser is needed. | Pain |
-| **Reddit** | Searches ICP subreddits. In owner communities (r/shopify, r/ecommerce, r/smallbusiness, r/Dentistry…) it looks for *intent* ("outsource customer support", "missed calls", "24/7 support"). In customer communities (r/robotvacuums, r/3Dprinting, r/ebikes…) it looks for complaints and extracts the brand. | Intent + Pain |
+| **Trustpilot** | Walks ICP category pages, keeps businesses rated 4.2 or lower with 30–20k reviews, then pages through their 1–2★ reviews newest-first to count the last 6 months against the prior 6. It also checks the complaints for support-pain phrases and whether the company replies. Also re-checks every domain in `config/watchlist.txt`. Data comes from the page's embedded `__NEXT_DATA__` JSON, so no browser is needed. | Pain |
+| **Reddit** | Searches the past year in ICP subreddits. In owner communities (r/shopify, r/ecommerce, r/smallbusiness, r/Dentistry…) it looks for *intent* posts from the last 6 months ("outsource customer support", "missed calls", "24/7 support"). In customer communities (r/robotvacuums, r/3Dprinting, r/ebikes…) it counts complaint posts per brand, split into the last 6 months and the prior 6. | Intent + Pain |
 | **Yelp** | Yelp Fusion API: med spas, dentists and aesthetic clinics in 10 US metros rated ≤ 3.5, with review excerpts scanned for phone and booking complaints. | Pain |
 
 Each lead is scored from 0 to 100 on rating, the number and type of pain signals, company size
@@ -59,10 +77,19 @@ python -m leadgen --sources reddit --reddit-time week
 Without `GOOGLE_SHEET_ID`, it writes only `output/leads.csv` and `output/leads.xlsx`. You can import
 either one into Google Sheets with **File → Import**.
 
-## Seed leads
-`data/seed_leads.xlsx` and `data/seed_leads.csv` hold 33 hand-researched leads from September 2026
-Trustpilot and Yelp complaints, across all five industries. Their quotes are summaries of public
-reviews, so open the Evidence URL before you reach out. Creality is left out because it is already a client.
+## Seed leads (researched 26 Sep 2026)
+`data/seed_leads.xlsx` holds 19 leads with **High** or **Medium** complaint volume in the last 6
+months. Its *Watchlist* tab (`data/seed_watchlist.csv`) holds 12 more with low or undated recent
+volume. Web search shows dated complaints and review totals but not exact counts per period, so
+these leads carry a tier rather than a number. The first scheduled run replaces the tiers with exact
+counts. To regenerate: `python scripts/build_seed_sheet.py`.
+
+Leads dropped after the re-check:
+* Electric Bike Company, which is in Chapter 7 bankruptcy.
+* Urtopia, Anycubic, Coprint3d, Sovol and Wallke, whose 2026 reviews are mostly positive.
+* DM Fashion, which has about 10 reviews in total.
+* Allpowers, whose latest complaint is from January 2026.
+* Creality and SILKSILKY, which are existing clients.
 
 ## Why custom code rather than an existing repo
 The open-source Trustpilot, Yelp and Reddit scrapers on GitHub each cover one site and return raw

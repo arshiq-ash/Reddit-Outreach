@@ -6,7 +6,7 @@ import csv
 import os
 from pathlib import Path
 
-from .common import ROOT, load_config, session
+from .common import ROOT, clean_domain, load_config, session
 from .enrich import enrich
 from .output import write_csv, write_google_sheet, write_xlsx
 from .scoring import score
@@ -22,7 +22,7 @@ def main() -> None:
     ap.add_argument("--domains", nargs="*", default=[], help="extra Trustpilot domains to analyze")
     ap.add_argument("--domains-file", default=str(ROOT / "config" / "watchlist.txt"))
     ap.add_argument("--tp-pages", type=int, default=3, help="Trustpilot category pages per category")
-    ap.add_argument("--reddit-time", default="month", choices=["day", "week", "month", "year", "all"])
+    ap.add_argument("--reddit-time", default="year", choices=["day", "week", "month", "year", "all"])
     ap.add_argument("--min-score", type=int, default=30)
     ap.add_argument("--no-enrich", action="store_true", help="skip website contact lookup")
     ap.add_argument("--include-seed", action="store_true", help="merge data/seed_leads.csv into the output")
@@ -56,14 +56,21 @@ def main() -> None:
         rows.setdefault(lead.key, lead.to_row(cfg))
     if args.include_seed:
         with open(ROOT / "data" / "seed_leads.csv", encoding="utf-8") as f:
-            for r in csv.DictReader(f):
+            seeds = list(csv.DictReader(f))
+        # A fresh scrape of the same company wins over the hand-researched seed row.
+        seen = {clean_domain(r["Website"]) or r["Company"].lower() for r in rows.values()}
+        for r in seeds:
+            if (clean_domain(r["Website"]) or r["Company"].lower()) not in seen:
                 rows.setdefault(r["Lead ID"], r)
     rows = sorted(rows.values(), key=lambda r: int(r.get("Lead Score") or 0), reverse=True)
 
     print(f"\n{len(rows)} leads "
           f"({sum(r['Priority'] == 'Hot' for r in rows)} hot, {sum(r['Priority'] == 'Warm' for r in rows)} warm)")
     write_csv(rows, Path(args.out + ".csv"))
-    write_xlsx(rows, Path(args.out + ".xlsx"))
+    # Leads with little recent complaint volume go to a separate tab rather than the main list.
+    main_rows = [r for r in rows if r.get("Recent Volume") != "Low"]
+    watch_rows = [r for r in rows if r.get("Recent Volume") == "Low"]
+    write_xlsx(main_rows, Path(args.out + ".xlsx"), extra_tabs={"Watchlist (low recent volume)": watch_rows})
     print(f"wrote {args.out}.csv and {args.out}.xlsx")
     if args.sheet_id:
         print("google sheet:", write_google_sheet(rows, args.sheet_id, args.tab))

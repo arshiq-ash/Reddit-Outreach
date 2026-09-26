@@ -20,14 +20,23 @@ def write_csv(rows: list[dict], path: Path) -> None:
         w.writerows(rows)
 
 
-def write_xlsx(rows: list[dict], path: Path) -> None:
+def write_xlsx(rows: list[dict], path: Path, extra_tabs: dict[str, list[dict]] | None = None) -> None:
     from openpyxl import Workbook
+
+    wb = Workbook()
+    tabs = {"Leads": rows, **(extra_tabs or {})}
+    for i, (title, tab_rows) in enumerate(tabs.items()):
+        ws = wb.active if i == 0 else wb.create_sheet()
+        ws.title = title
+        _fill_sheet(ws, tab_rows)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    wb.save(path)
+
+
+def _fill_sheet(ws, rows: list[dict]) -> None:
     from openpyxl.styles import Alignment, Font, PatternFill
     from openpyxl.worksheet.datavalidation import DataValidation
 
-    wb = Workbook()
-    ws = wb.active
-    ws.title = "Leads"
     ws.append(SHEET_COLUMNS)
     for r in rows:
         ws.append([r.get(c, "") for c in SHEET_COLUMNS])
@@ -43,20 +52,20 @@ def write_xlsx(rows: list[dict], path: Path) -> None:
     for row in ws.iter_rows(min_row=2):
         for c in row:
             c.alignment = wrap
-    colors = {"Hot": "F8D7DA", "Warm": "FFF3CD", "Cold": "E2E3E5"}
-    pcol = SHEET_COLUMNS.index("Priority") + 1
-    for row in ws.iter_rows(min_row=2):
-        fill = colors.get(row[pcol - 1].value)
-        if fill:
-            row[pcol - 1].fill = PatternFill("solid", fgColor=fill)
+    colors = {"Hot": "F8D7DA", "Warm": "FFF3CD", "Cold": "E2E3E5",
+              "High": "F8D7DA", "Medium": "FFF3CD", "Low": "E2E3E5"}
+    for name in ("Priority", "Recent Volume"):
+        idx = SHEET_COLUMNS.index(name)
+        for row in ws.iter_rows(min_row=2):
+            fill = colors.get(row[idx].value)
+            if fill:
+                row[idx].fill = PatternFill("solid", fgColor=fill)
     status_col = ws.cell(row=1, column=SHEET_COLUMNS.index("Status") + 1).column_letter
     dv = DataValidation(type="list", formula1='"New,Contacted,Replied,Meeting Booked,Won,Lost,Not a Fit"')
     ws.add_data_validation(dv)
     dv.add(f"{status_col}2:{status_col}{max(len(rows) + 1, 500)}")
     ws.freeze_panes = "F2"
     ws.auto_filter.ref = ws.dimensions
-    path.parent.mkdir(parents=True, exist_ok=True)
-    wb.save(path)
 
 
 def write_google_sheet(rows: list[dict], sheet_id: str, tab: str = "Leads") -> str:
@@ -91,7 +100,8 @@ def write_google_sheet(rows: list[dict], sheet_id: str, tab: str = "Leads") -> s
     ws.update([SHEET_COLUMNS] + [[r.get(c, "") for c in SHEET_COLUMNS] for r in merged],
               value_input_option="USER_ENTERED")
     ws.freeze(rows=1, cols=5)
-    ws.format("A1:V1", {"textFormat": {"bold": True}, "backgroundColor": {"red": 0.12, "green": 0.23, "blue": 0.37},
-                        "horizontalAlignment": "CENTER"})
-    ws.format("A1:V1", {"textFormat": {"bold": True, "foregroundColor": {"red": 1, "green": 1, "blue": 1}}})
+    header = f"A1:{gspread.utils.rowcol_to_a1(1, len(SHEET_COLUMNS))}"
+    ws.format(header, {"textFormat": {"bold": True, "foregroundColor": {"red": 1, "green": 1, "blue": 1}},
+                       "backgroundColor": {"red": 0.12, "green": 0.23, "blue": 0.37},
+                       "horizontalAlignment": "CENTER"})
     return f"https://docs.google.com/spreadsheets/d/{sheet_id}"

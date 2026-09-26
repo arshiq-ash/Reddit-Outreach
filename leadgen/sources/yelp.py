@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import os
 
-from ..common import Lead, find_phrases, get
+from ..common import Lead, find_phrases, get, months_ago, parse_date
 
 API = "https://api.yelp.com/v3"
 # Appointment-led businesses lose revenue on missed calls, so phone-related complaints matter most.
@@ -36,10 +36,14 @@ def collect(s, cfg: dict, per_search: int = 50) -> list[Lead]:
                     if b["id"] in seen or b.get("is_closed") or b.get("rating", 5) > threshold:
                         continue
                     seen.add(b["id"])
-                    quote, signals = "", []
+                    quote, signals, bad_recent, latest = "", [], 0, None
                     rv = get(s, f"{API}/businesses/{b['id']}/reviews", headers=headers, delay=0.3,
                              params={"limit": 3, "sort_by": "newest"}, tries=1)
                     for review in (rv.json().get("reviews", []) if rv else []):
+                        created = parse_date(review.get("time_created", "").replace(" ", "T"))
+                        if review.get("rating", 5) <= 2 and created and created >= months_ago(6):
+                            bad_recent += 1
+                            latest = max(latest or created, created)
                         hits = find_phrases(review.get("text", ""), cfg["pain_phrases"] + PHONE_PAIN)
                         signals += hits
                         if hits and not quote:
@@ -53,6 +57,9 @@ def collect(s, cfg: dict, per_search: int = 50) -> list[Lead]:
                         evidence_url=b.get("url", "").split("?")[0],
                         rating=b.get("rating"),
                         review_count=b.get("review_count"),
+                        bad_6m=bad_recent,
+                        latest_bad=latest.date().isoformat() if latest else "",
+                        count_basis="sample",  # Fusion API exposes only 3 review excerpts
                         pain_signals=signals or [f"{b.get('rating')}★ on Yelp"],
                         evidence_quote=quote,
                         location=", ".join(x for x in (addr.get("city"), addr.get("state")) if x),

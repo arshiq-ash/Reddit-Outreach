@@ -5,7 +5,8 @@ HTML scraping or headless browser is needed.
 """
 from __future__ import annotations
 
-from ..common import Lead, clean_domain, find_phrases, get, guess_industry, next_data
+from ..common import (Lead, clean_domain, find_phrases, get, guess_industry, months_ago,
+                      next_data, parse_date)
 
 BASE = "https://www.trustpilot.com"
 
@@ -24,19 +25,48 @@ def _businesses_in_category(s, category: str, pages: int):
         yield from items
 
 
-def analyze_domain(s, domain: str, cfg: dict, industry_key: str | None = None) -> Lead | None:
-    """Read a business's 1–2 star reviews and build a lead from its support-related pain."""
-    r = get(s, f"{BASE}/review/{domain}", params={"stars": [1, 2], "sort": "recency"})
-    data = next_data(r.text) if r else None
-    if not data:
+def _bad_reviews(s, domain: str, max_pages: int):
+    """Yield (pageProps, reviews) for 1–2★ reviews, newest first, until older than 12 months."""
+    cutoff = months_ago(12)
+    for page in range(1, max_pages + 1):
+        r = get(s, f"{BASE}/review/{domain}",
+                params={"stars": [1, 2], "sort": "recency", "page": page})
+        data = next_data(r.text) if r else None
+        if not data:
+            return
+        props = data.get("props", {}).get("pageProps", {})
+        reviews = props.get("reviews", []) or []
+        yield props, reviews
+        oldest = parse_date((reviews[-1].get("dates") or {}).get("publishedDate")) if reviews else None
+        if not reviews or (oldest and oldest < cutoff):
+            return
+
+
+def analyze_domain(s, domain: str, cfg: dict, industry_key: str | None = None,
+                   max_pages: int = 15) -> Lead | None:
+    """Count a business's 1–2★ reviews in the last 6 months (key indicator) and the 6 before."""
+    six, twelve = months_ago(6), months_ago(12)
+    bu, recent, prior, oldest, exhausted = {}, [], 0, None, True
+    pages = 0
+    for props, reviews in _bad_reviews(s, domain, max_pages):
+        pages += 1
+        bu = bu or props.get("businessUnit", {}) or {}
+        if len(reviews) >= 20 and pages == max_pages:
+            exhausted = False  # stopped on the page limit, not on the date cutoff or last page
+        for rv in reviews:
+            published = parse_date((rv.get("dates") or {}).get("publishedDate"))
+            if not published:
+                continue
+            oldest = min(oldest or published, published)
+            if published >= six:
+                recent.append((published, rv))
+            elif published >= twelve:
+                prior += 1
+    if not bu:
         return None
-    props = data.get("props", {}).get("pageProps", {})
-    bu = props.get("businessUnit", {}) or {}
-    reviews = props.get("reviews", []) or []
-    contact = bu.get("contactInfo", {}) or {}
 
     signals, best_quote, replied = [], "", 0
-    for rv in reviews:
+    for _, rv in recent:
         text = f"{rv.get('title', '')}. {rv.get('text', '')}"
         hits = find_phrases(text, cfg["pain_phrases"])
         signals += hits
@@ -44,30 +74,42 @@ def analyze_domain(s, domain: str, cfg: dict, industry_key: str | None = None) -
             best_quote = text.strip()
         replied += 1 if rv.get("reply") else 0
 
-    if not signals:
+    min_bad = cfg["scoring"].get("min_bad_reviews_6m", 5)
+    if len(recent) < min_bad:
         return None
-    name = bu.get("displayName") or domain
+    contact = bu.get("contactInfo", {}) or {}
+    # If we hit the page limit before going back 12 months, the prior count is partial, and before
+    # 6 months the recent count is only a lower bound.
+    partial_prior = not exhausted and (oldest is None or oldest > twelve)
+    partial_recent = not exhausted and (oldest is None or oldest > six)
     return Lead(
         source="Trustpilot",
         lead_type="Pain",
-        company=name,
+        company=bu.get("displayName") or domain,
         industry_key=industry_key,
-        evidence_url=f"{BASE}/review/{domain}?stars=1&stars=2",
+        evidence_url=f"{BASE}/review/{domain}?stars=1&stars=2&sort=recency",
         website=bu.get("websiteUrl") or f"https://{domain}",
         rating=bu.get("trustScore"),
         review_count=bu.get("numberOfReviews"),
-        reply_rate=(replied / len(reviews)) if reviews else None,
+        reply_rate=(replied / len(recent)) if recent else None,
+        bad_6m=len(recent),
+        bad_prev_6m=None if partial_prior else prior,
+        latest_bad=max(p for p, _ in recent).date().isoformat(),
+        count_basis="sample" if partial_recent else "exact",
         pain_signals=signals,
-        evidence_quote=best_quote,
+        evidence_quote=best_quote or f"{recent[0][1].get('title', '')}. {recent[0][1].get('text', '')}".strip(),
         location=", ".join(x for x in (contact.get("city"), contact.get("country")) if x),
         contact_email=contact.get("email") or "",
         contact_phone=contact.get("phone") or "",
-        notes=f"{len(signals)} support-pain mentions in latest {len(reviews)} negative reviews",
+        notes=f"{len(signals)} support-pain phrases across {len(recent)} bad reviews in 6 months"
+              + (" (lower bound: page limit reached)" if partial_recent else ""),
     )
 
 
 def collect(s, cfg: dict, pages: int = 3, extra_domains: list[str] | None = None) -> list[Lead]:
-    threshold = cfg["scoring"]["low_rating_threshold"]
+    # Loose prefilter: a well-rated brand can still be drowning in recent complaints,
+    # so the 6-month bad-review count (not the lifetime score) decides.
+    threshold = cfg["scoring"].get("category_max_rating", 4.2)
     lo, hi = cfg["scoring"]["ideal_review_count"]
     excluded = set(cfg["scoring"].get("exclude_domains", []))
     leads, seen = [], set()
