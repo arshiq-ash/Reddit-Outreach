@@ -1,0 +1,146 @@
+# Ideal Customer Profile, derived from https://optiflowcx.com/portfolio
+#
+# Each industry maps to a portfolio case study, so every lead can be pitched
+# with a proof point from a similar client.
+
+industries:
+  ecommerce_dtc:
+    label: "E-commerce & DTC"
+    case_study: "Silksilky: 1 → 6 agents, 24/7 email support, 100–150 emails/agent/day, Google rating 3.4 → 4.4"
+    pitch: "WISMO, sizing, returns, refunds and exchanges handled 24/7 inside Shopify + your helpdesk"
+    subreddits: [Shopify, ecommerce, smallbusiness, Entrepreneur, FashionReps, femalefashionadvice, malefashionadvice, Scams, CustomerService, mildlyinfuriating]
+    trustpilot_categories: [clothing_store, womens_clothing_store, shoe_store, lingerie_store, swimwear_store, jewelry_store, cosmetics_store, sportswear_store, furniture_store, bedding_store]
+    keywords: [clothing, apparel, fashion, shoes, dress, silk, pajamas, lingerie, swimwear, jewelry, skincare, shopify, store, order, dtc]
+
+  consumer_tech:
+    label: "Consumer Technology"
+    case_study: "Yarbo: pre-sales → full after-sales, 3 → 15 agents, 24/7 chat/email/phone, L1 → L2 escalation"
+    pitch: "Pre-sales guidance plus 24/7 technical after-sales support with a structured L1/L2 escalation path"
+    subreddits: [robotvacuums, RobotMowers, ebikes, SolarDIY, smarthome, homeautomation, gadgets, Roborock, Ecovacs, electricscooters]
+    trustpilot_categories: [electronics_technology, electronics_store, home_appliance_store, bicycle_store, electric_vehicle_dealer, solar_energy_equipment_supplier]
+    keywords: [robot, mower, vacuum, e-bike, ebike, scooter, power station, battery, solar, camera, smart, gadget, drone, headphones]
+
+  hardware_3d:
+    label: "3D Printing & Hardware"
+    case_study: "Creality 3D: 4 → 14 agents, email → chat → phone, 24/7, weekly SOP/product changes absorbed"
+    pitch: "Technical troubleshooting support that keeps up with weekly firmware/product changes, 24/7 on every channel"
+    subreddits: [3Dprinting, FixMyPrint, resinprinting, BambuLab, ender3, AnycubicKobra, Laserengraving, lasercutting, CNC]
+    trustpilot_categories: [computer_store, hardware_store, electronics_technology, industrial_equipment_supplier]
+    keywords: [3d printer, printer, filament, resin, laser, engraver, cnc, hotend, firmware, nozzle]
+
+  logistics:
+    label: "Logistics & Delivery"
+    case_study: "SwiftX: 3 → 6 agents, 90–100 calls/agent/day on dispatch and package-status inquiries"
+    pitch: "High-volume phone and chat teams for package status, dispatch and delivery exceptions, 24/7"
+    subreddits: [Couriers, logistics, Shipping, USPS, fedex, UPS, amazonprime, CanadaPost]
+    trustpilot_categories: [courier_service, delivery_service, shipping_company, moving_company, freight_forwarding_service, logistics_service]
+    keywords: [delivery, courier, parcel, package, tracking, shipping, freight, dispatch, driver]
+
+  appointment_practices:
+    label: "Med Spas, Dental & Aesthetic Clinics"
+    case_study: "AI Voice Receptionist + human team: answers every call, books/reschedules, after-hours & overflow coverage (GoHighLevel)"
+    pitch: "Never miss a call again: AI voice receptionist + human backup, booking, reminders and no-show follow-ups"
+    subreddits: [Dentistry, PlasticSurgery, SkincareAddiction, Botox, 30PlusSkinCare]
+    yelp_categories: [medicalspa, cosmeticdentists, generaldentistry, laser_hair_removal, skincare, orthodontists]
+    yelp_locations: ["New York, NY", "Los Angeles, CA", "Miami, FL", "Houston, TX", "Dallas, TX", "Phoenix, AZ", "Chicago, IL", "Atlanta, GA", "Las Vegas, NV", "San Diego, CA"]
+    keywords: [med spa, medspa, dental, dentist, clinic, botox, filler, laser, aesthetic, orthodontist]
+
+# Phrases that signal a support-capacity problem (the pain OptiFlowCX solves).
+pain_phrases:
+  - no response
+  - no reply
+  - never responded
+  - never replied
+  - never heard back
+  - never called back
+  - didn't respond
+  - ignored my emails
+  - ignored emails
+  - still waiting
+  - impossible to reach
+  - impossible to contact
+  - can't reach
+  - cannot reach
+  - no one answers
+  - nobody answers
+  - voicemail
+  - on hold
+  - hold for
+  - no customer service
+  - customer service is non-existent
+  - nonexistent customer service
+  - terrible customer service
+  - worst customer service
+  - awful customer service
+  - only automated
+  - automated replies
+  - chatbot
+  - bot
+  - email only
+  - weeks later
+  - weeks for a response
+  - days for a response
+  - ticket closed
+  - no refund
+  - still no refund
+  - no live person
+  - after hours
+  - does not respond
+  - doesn't respond
+  - don't respond
+  - not responding
+  - no answer
+  - don't answer
+  - doesn't answer
+  - unanswered
+  - ghosting
+  - ghosted
+  - ignored
+  - ignores
+  - email-only
+  - unresolved
+  - painfully slow
+  - extremely slow
+  - non-existent
+  - uncontactable
+  - no way to contact
+  - no one to contact
+  - nobody called
+  - disconnected
+  - impossible to get
+  - months
+  - closed without resolution
+  - zero technical feedback
+
+# Phrases that signal a business owner who is actively looking for help (Reddit intent leads).
+intent_phrases:
+  - overwhelmed with support
+  - customer support outsourcing
+  - outsource customer service
+  - outsource customer support
+  - hire customer service
+  - hiring customer support
+  - 24/7 support
+  - support tickets piling
+  - can't keep up with emails
+  - can't keep up with tickets
+  - virtual assistant for customer service
+  - answering service
+  - missed calls
+  - after hours calls
+  - receptionist
+  - helpdesk recommendations
+
+# Scoring knobs.
+scoring:
+  ideal_review_count: [30, 20000]   # growing brands, not tiny shops and not mega-enterprises
+  low_rating_threshold: 3.5
+  exclude_domains:                  # enterprises unlikely to outsource to a boutique team
+    - amazon.com
+    - dhl.com
+    - usps.com
+    - fedex.com
+    - ups.com
+    - shopify.com
+    - irobot.com
+    - walmart.com
