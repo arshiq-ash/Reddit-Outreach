@@ -10,10 +10,11 @@ from .common import ROOT, STATS, blocked_hosts, clean_domain, load_config, sessi
 from .enrich import enrich
 from .output import write_csv, write_google_sheet, write_xlsx
 from .scoring import score
-from .sources import reddit, trustpilot, yelp
+from .sources import reddit, redditalerts, trustpilot, yelp
 
 SEED_FILES = [ROOT / "data" / "seed_leads.csv", ROOT / "data" / "seed_watchlist.csv"]
-LEAD_SOURCES = ("trustpilot", "reddit", "yelp")
+LEAD_SOURCES = ("trustpilot", "reddit", "yelp", "reddit_alerts")
+BLOCKABLE_HOSTS = ("trustpilot", "reddit", "yelp")
 
 
 @dataclass
@@ -29,6 +30,7 @@ class Options:
     min_score: int = 30
     enrich: bool = True
     include_seed: bool = False
+    alert_days: int = 7
 
 
 @dataclass
@@ -55,6 +57,8 @@ def run(opts: Options) -> Result:
         leads += reddit.collect(s, cfg, time_filter=opts.reddit_time)
     if "yelp" in opts.sources:
         leads += yelp.collect(s, cfg)
+    if "reddit_alerts" in opts.sources:
+        leads += redditalerts.collect(s, cfg, days=opts.alert_days)
 
     for lead in leads:
         lead.score = score(lead, cfg)
@@ -95,7 +99,7 @@ def run(opts: Options) -> Result:
 
     print("\nrequests per host:", STATS)
     # Only the lead sources matter here; company websites refusing the contact lookup is normal.
-    blocked = [h for h in blocked_hosts() if any(k in h for k in LEAD_SOURCES)]
+    blocked = [h for h in blocked_hosts() if any(k in h for k in BLOCKABLE_HOSTS)]
     if blocked:
         print(f"\nWARNING: {', '.join(blocked)} refused or never answered (HTTP 401/403/429 or no connection). "
               "These sources produced no data this run. See README > 'If a source is blocked'.")

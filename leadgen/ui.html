@@ -65,9 +65,10 @@
   <div class="stack">
     <section class="card">
       <h2>Run</h2>
-      <label><input type="checkbox" name="src" value="trustpilot" checked> Trustpilot <span class="muted">(no key)</span></label>
-      <label><input type="checkbox" name="src" value="reddit" checked> Reddit <span id="k-reddit" class="chip">key?</span></label>
+      <label><input type="checkbox" name="src" value="reddit_alerts" checked> Reddit alerts (F5Bot email) <span id="k-mail" class="chip">not set</span></label>
       <label><input type="checkbox" name="src" value="yelp" checked> Yelp <span id="k-yelp" class="chip">key?</span></label>
+      <label><input type="checkbox" name="src" value="trustpilot"> Trustpilot <span class="muted">(often blocked)</span></label>
+      <label><input type="checkbox" name="src" value="reddit"> Reddit API <span id="k-reddit" class="chip">key?</span></label>
       <div class="field"><span>Trustpilot category pages per category (more = slower, more leads)</span>
         <input id="tp_pages" type="number" min="1" max="20" value="3"></div>
       <label><input id="include_seed" type="checkbox" checked> Include the researched leads</label>
@@ -97,6 +98,9 @@
         <div class="field"><span>Reddit client secret</span><input id="REDDIT_CLIENT_SECRET" type="password" autocomplete="off"></div>
         <div class="field"><span>Yelp API key</span><input id="YELP_API_KEY" type="password" autocomplete="off"></div>
         <div class="field"><span>Google Sheet ID</span><input id="GOOGLE_SHEET_ID" type="text" autocomplete="off"></div>
+        <div class="field"><span>Email that receives F5Bot alerts</span><input id="EMAIL_ADDRESS" type="text" placeholder="you@gmail.com" autocomplete="off"></div>
+        <div class="field"><span>Email app password (Gmail: Google Account → Security → App passwords)</span><input id="EMAIL_APP_PASSWORD" type="password" autocomplete="off"></div>
+        <div class="field"><span>IMAP server (leave empty for Gmail)</span><input id="EMAIL_IMAP_HOST" type="text" placeholder="imap.gmail.com" autocomplete="off"></div>
         <div class="field"><span>Google service-account key file (path)</span><input id="GOOGLE_APPLICATION_CREDENTIALS" type="text" placeholder="service_account.json" autocomplete="off"></div>
         <button id="save">Save keys</button> <span id="saved" class="muted"></span>
       </details>
@@ -149,6 +153,7 @@ function showKeys(k) {
   set("k-reddit", k.REDDIT_CLIENT_ID && k.REDDIT_CLIENT_SECRET, "key set", "no key");
   set("k-yelp", k.YELP_API_KEY, "key set", "no key");
   set("k-sheet", k.GOOGLE_SHEET_ID, "set", "not set");
+  set("k-mail", k.EMAIL_ADDRESS && k.EMAIL_APP_PASSWORD, "email set", "not set");
 }
 
 function render() {
@@ -165,7 +170,8 @@ function render() {
       <td>${esc(r["Bad Reviews (Last 6 Mo)"])}</td>
       <td>${esc(r["Latest Bad Review"])}</td>
       <td><span class="chip ${esc(r.Priority)}">${esc(r["Lead Score"])}</span></td>
-      <td class="q">${esc(r["Evidence Quote"]).slice(0, 220)} <a href="${esc(r["Evidence URL"])}" target="_blank" rel="noopener">source</a></td>
+      <td class="q">${esc(r["Evidence Quote"]).slice(0, 220)} <a href="${esc(r["Evidence URL"])}" target="_blank" rel="noopener">${r["Lead Type"] === "Intent" ? "open post" : "source"}</a>
+          ${r["Suggested Reply"] ? `<br><button class="copy" data-reply="${esc(r["Suggested Reply"])}" style="margin-top:6px;padding:4px 10px">Copy reply</button>` : ""}</td>
       <td>${esc(r["Contact Email"])}${r["Contact Phone"] ? "<br>" + esc(r["Contact Phone"]) : ""}</td>
     </tr>`).join("") : `<tr><td colspan="8" class="muted">No leads match this filter.</td></tr>`;
 }
@@ -209,13 +215,20 @@ $("check").onclick = async () => {
 
 $("save").onclick = async () => {
   const body = {};
-  ["REDDIT_CLIENT_ID","REDDIT_CLIENT_SECRET","YELP_API_KEY","GOOGLE_SHEET_ID","GOOGLE_APPLICATION_CREDENTIALS"]
+  ["REDDIT_CLIENT_ID","REDDIT_CLIENT_SECRET","YELP_API_KEY","GOOGLE_SHEET_ID","GOOGLE_APPLICATION_CREDENTIALS",
+   "EMAIL_ADDRESS","EMAIL_APP_PASSWORD","EMAIL_IMAP_HOST"]
     .forEach(k => { if ($(k).value.trim()) body[k] = $(k).value.trim(); $(k).value = ""; });
   const r = await api("/api/settings", body);
   showKeys(r.keys); $("saved").textContent = "Saved.";
 };
 
 $("filter").onchange = render;
+$("rows").addEventListener("click", async (e) => {
+  const b = e.target.closest("button.copy"); if (!b) return;
+  try { await navigator.clipboard.writeText(b.dataset.reply); b.textContent = "Copied"; }
+  catch { b.textContent = "Select & copy from the sheet"; }
+  setTimeout(() => (b.textContent = "Copy reply"), 1500);
+});
 refresh().then(s => { if (s.running) polling = setInterval(refresh, 2000); });
 loadLeads();
 </script>

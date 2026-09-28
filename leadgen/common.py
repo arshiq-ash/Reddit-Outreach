@@ -24,13 +24,14 @@ SHEET_COLUMNS = [
     "Lead ID", "Date Found", "Source", "Lead Type", "Company", "Website", "Industry",
     "Recent Volume", "Bad Reviews (Last 6 Mo)", "Bad Reviews (Prior 6 Mo)", "Trend", "Latest Bad Review",
     "Rating", "Review Count", "Negative Reviews Replied %", "Pain Signals", "Evidence Quote",
-    "Evidence URL", "Lead Score", "Priority", "Matching Case Study", "Suggested Pitch",
+    "Evidence URL", "Lead Score", "Priority", "Matching Case Study", "Suggested Pitch", "Suggested Reply",
     "Contact Email", "Contact Phone", "Location", "Status", "Notes",
 ]
 
 
 ENV_KEYS = ["REDDIT_CLIENT_ID", "REDDIT_CLIENT_SECRET", "YELP_API_KEY",
-            "GOOGLE_SHEET_ID", "GOOGLE_APPLICATION_CREDENTIALS"]
+            "GOOGLE_SHEET_ID", "GOOGLE_APPLICATION_CREDENTIALS",
+            "EMAIL_ADDRESS", "EMAIL_APP_PASSWORD", "EMAIL_IMAP_HOST"]
 ENV_FILE = ROOT / ".env"
 
 
@@ -201,6 +202,7 @@ class Lead:
     bad_prev_6m: int | None = None     # same count for the 6 months before that, for the trend
     latest_bad: str = ""               # ISO date of the newest bad review
     count_basis: str = ""              # "exact" (scraped) or "sample" (seen via web search)
+    suggested_reply: str = ""          # drafted reply for Reddit intent posts (posted by hand)
     volume_tier: str = ""              # High / Medium / Low; derived from bad_6m when not set by hand
     pain_signals: list[str] = field(default_factory=list)
     evidence_quote: str = ""
@@ -213,7 +215,8 @@ class Lead:
 
     @property
     def key(self) -> str:
-        basis = clean_domain(self.website) or self.company.lower().strip() or self.evidence_url
+        basis = clean_domain(self.website) or (self.evidence_url if self.lead_type == "Intent" else "") \
+            or self.company.lower().strip() or self.evidence_url
         return hashlib.sha1(f"{self.source}|{basis}".encode()).hexdigest()[:10]
 
     def to_row(self, cfg: dict) -> dict:
@@ -243,6 +246,7 @@ class Lead:
             "Priority": priority,
             "Matching Case Study": ind.get("case_study", ""),
             "Suggested Pitch": ind.get("pitch", ""),
+            "Suggested Reply": self.suggested_reply,
             "Contact Email": self.contact_email,
             "Contact Phone": self.contact_phone,
             "Location": self.location,

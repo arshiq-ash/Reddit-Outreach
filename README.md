@@ -26,6 +26,25 @@ To run it every morning, keep the app open and start it with `start.bat --daily 
 The app only listens on `127.0.0.1`, so nobody else on your network can reach it. Turn off any VPN
 if Trustpilot shows as blocked.
 
+## Automatic Reddit leads (F5Bot → your inbox → the sheet)
+
+Reddit no longer issues API keys for this kind of use, so the app reads **F5Bot** alert emails.
+F5Bot is free and emails you every new Reddit post matching your keywords.
+
+1. Sign up at **https://f5bot.com** with the email you want alerts sent to, then add the keywords
+   listed under `f5bot_keywords` in `config/icp.yaml` (e.g. `outsource customer support`, `missed calls`).
+2. Create an **app password** for that inbox. For Gmail: turn on 2-Step Verification, then go to
+   Google Account → Security → **App passwords**, create one, and copy the 16 characters.
+3. In the app, open **Settings: API keys**, fill in *Email that receives F5Bot alerts* and
+   *Email app password*, and save.
+4. Start the app with automatic runs: `bash start.command --every 3`.
+
+Every 3 hours the app reads the last 7 days of F5Bot emails (read-only; nothing is marked read or
+moved). It keeps posts where an owner describes needing support help and adds them as **Intent**
+leads, each with a drafted reply matched to the closest case study (**Copy reply** button). You post
+replies yourself, following each subreddit's self-promotion rules; automated posting gets
+accounts banned.
+
 ## Target industries (from the portfolio)
 
 | Industry | Proof point | What we sell them |

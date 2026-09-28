@@ -13,7 +13,8 @@ def main() -> None:
     load_env()
     d = Options()
     ap = argparse.ArgumentParser(description="Find CX-outsourcing leads from review sites.")
-    ap.add_argument("--sources", default=",".join(sorted(d.sources)))
+    ap.add_argument("--sources", default=",".join(sorted(d.sources)),
+                    help="any of: trustpilot, reddit, yelp, reddit_alerts")
     ap.add_argument("--sheet-id", default=os.getenv("GOOGLE_SHEET_ID"), help="Google Sheet to upsert into")
     ap.add_argument("--tab", default=d.tab)
     ap.add_argument("--out", default=d.out, help="local path prefix for .csv/.xlsx")

@@ -130,6 +130,37 @@ intent_phrases:
   - after hours calls
   - receptionist
   - helpdesk recommendations
+  - customer service outsourcing
+  - hire customer service reps
+  - virtual assistant customer service
+  - overwhelmed with support tickets
+  - customer support agency
+  - customer support team
+  - customer service team
+  - virtual receptionist
+  - front desk calls
+  - after-hours calls
+  - miss calls
+  - drowning in emails
+  - drowning in tickets
+  - need help with customer service
+  - need help with customer support
+  - hire a va
+  - support backlog
+
+# Paste these into F5Bot (f5bot.com) as keyword alerts. The app reads the alert emails.
+f5bot_keywords:
+  - outsource customer support
+  - customer service outsourcing
+  - hire customer service reps
+  - virtual assistant customer service
+  - overwhelmed with support tickets
+  - 24/7 customer support
+  - customer support agency
+  - shopify customer service
+  - answering service
+  - virtual receptionist
+  - missed calls
 
 # Scoring knobs.
 scoring:

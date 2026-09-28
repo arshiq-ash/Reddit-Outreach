@@ -245,21 +245,36 @@ def _daily(at: str) -> None:
             nxt += dt.timedelta(days=1)
         time.sleep((nxt - now).total_seconds())
         print(f"[daily] starting scheduled run ({at})")
-        JOB.start(Options(out=str(OUT), include_seed=True, sheet_id=os.getenv("GOOGLE_SHEET_ID")))
+        # Sources that work from a normal computer: F5Bot alert emails and the Yelp API.
+        JOB.start(Options(sources={"reddit_alerts", "yelp"}, out=str(OUT), include_seed=True,
+                          sheet_id=os.getenv("GOOGLE_SHEET_ID")))
+
+
+def _every(hours: float) -> None:
+    """Run now, then every N hours while the app is open."""
+    while True:
+        print(f"[auto] starting scheduled run (every {hours:g}h)")
+        JOB.start(Options(sources={"reddit_alerts", "yelp"}, out=str(OUT), include_seed=True,
+                          sheet_id=os.getenv("GOOGLE_SHEET_ID")))
+        time.sleep(hours * 3600)
 
 
 def main() -> None:
     ap = argparse.ArgumentParser(description="Local lead-finder app.")
     ap.add_argument("--port", type=int, default=8000)
     ap.add_argument("--daily", metavar="HH:MM", help="also run automatically every day at this local time")
+    ap.add_argument("--every", type=float, metavar="HOURS", help="run now and then every N hours while the app is open")
     ap.add_argument("--no-browser", action="store_true", help="don't open the page automatically")
     args = ap.parse_args()
     load_env()
     if args.daily:
         threading.Thread(target=_daily, args=(args.daily,), daemon=True).start()
+    if args.every:
+        threading.Thread(target=_every, args=(max(args.every, 0.5),), daemon=True).start()
     srv = ThreadingHTTPServer(("127.0.0.1", args.port), Handler)
     print(f"Lead Finder running at http://localhost:{args.port}  (Ctrl+C to stop)"
-          + (f"; daily run at {args.daily}" if args.daily else ""))
+          + (f"; daily run at {args.daily}" if args.daily else "")
+          + (f"; auto-run every {args.every:g}h" if args.every else ""))
     if not args.no_browser:
         threading.Timer(1.0, webbrowser.open, args=(f"http://localhost:{args.port}",)).start()
     try:
