@@ -32,3 +32,9 @@ jobs:
         with:
           name: leads
           path: output/
+      - name: Print leads to log
+        if: always()
+        run: |
+          echo "=====LEADS_CSV_BEGIN====="
+          cat output/leads.csv || true
+          echo "=====LEADS_CSV_END====="
