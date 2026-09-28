@@ -29,6 +29,37 @@ SHEET_COLUMNS = [
 ]
 
 
+ENV_KEYS = ["REDDIT_CLIENT_ID", "REDDIT_CLIENT_SECRET", "YELP_API_KEY",
+            "GOOGLE_SHEET_ID", "GOOGLE_APPLICATION_CREDENTIALS"]
+ENV_FILE = ROOT / ".env"
+
+
+def load_env(path: Path = ENV_FILE) -> None:
+    """Load KEY=value lines from .env into os.environ (real environment variables win)."""
+    if not path.exists():
+        return
+    for line in path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if line and not line.startswith("#") and "=" in line:
+            key, value = line.split("=", 1)
+            os.environ.setdefault(key.strip(), value.strip().strip('"').strip("'"))
+
+
+def save_env(updates: dict[str, str], path: Path = ENV_FILE) -> None:
+    """Write known keys to .env, keeping existing values for keys not being updated."""
+    current = {}
+    if path.exists():
+        for line in path.read_text(encoding="utf-8").splitlines():
+            if "=" in line and not line.lstrip().startswith("#"):
+                k, v = line.split("=", 1)
+                current[k.strip()] = v.strip()
+    for k, v in updates.items():
+        if k in ENV_KEYS and v is not None:
+            current[k] = v.strip()
+            os.environ[k] = v.strip()
+    path.write_text("".join(f"{k}={v}\n" for k, v in current.items() if v), encoding="utf-8")
+
+
 def load_config(path: str | Path | None = None) -> dict:
     with open(path or ROOT / "config" / "icp.yaml", encoding="utf-8") as f:
         return yaml.safe_load(f)
@@ -45,24 +76,39 @@ STATS: dict[str, dict[str, int]] = {}
 
 
 def _record(url: str, outcome: str) -> None:
-    host = re.sub(r"^https?://", "", url).split("/")[0]
+    host = _host(url)
     STATS.setdefault(host, {}).setdefault(outcome, 0)
     STATS[host][outcome] += 1
 
 
+def _host(url: str) -> str:
+    return re.sub(r"^https?://", "", url).split("/")[0]
+
+
 def blocked_hosts() -> list[str]:
-    """Hosts that answered every request with 401/403/429 (bot protection / missing credentials)."""
-    return [h for h, c in STATS.items() if not c.get("ok") and c.get("blocked")]
+    """Hosts that refused (401/403/429) or never answered a single request this run."""
+    return [h for h, c in STATS.items() if not c.get("ok") and (c.get("blocked") or c.get("error"))]
+
+
+def _given_up(url: str, limit: int = 5) -> bool:
+    """After `limit` failures and no success, stop hitting a host for the rest of the run."""
+    c = STATS.get(_host(url), {})
+    return not c.get("ok") and c.get("blocked", 0) + c.get("error", 0) >= limit
 
 
 def get(s: requests.Session, url: str, *, params=None, headers=None, tries: int = 3, delay: float = 1.5):
     """GET with polite pacing and exponential backoff on 429/5xx. Returns Response or None."""
+    if _given_up(url):
+        _record(url, "skipped")
+        return None
     for attempt in range(tries):
         try:
-            r = s.get(url, params=params, headers=headers, timeout=25)
+            r = s.get(url, params=params, headers=headers, timeout=(10, 25))
         except requests.RequestException as e:
-            print(f"  ! {url}: {e}")
-            r = None
+            # Connection-level failure: don't retry here; _given_up() stops the host after 5 of these.
+            print(f"  ! {url}: {type(e).__name__}")
+            _record(url, "error")
+            return None
         if r is not None and r.status_code == 200:
             _record(url, "ok")
             time.sleep(delay)

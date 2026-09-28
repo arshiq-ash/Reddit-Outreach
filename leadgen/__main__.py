@@ -2,87 +2,38 @@
 from __future__ import annotations
 
 import argparse
-import csv
 import os
-from pathlib import Path
-
 import sys
 
-from .common import ROOT, STATS, blocked_hosts, clean_domain, load_config, session
-from .enrich import enrich
-from .output import write_csv, write_google_sheet, write_xlsx
-from .scoring import score
-from .sources import reddit, trustpilot, yelp
+from .common import load_env
+from .pipeline import Options, run
 
 
 def main() -> None:
+    load_env()
+    d = Options()
     ap = argparse.ArgumentParser(description="Find CX-outsourcing leads from review sites.")
-    ap.add_argument("--sources", default="reddit,trustpilot,yelp")
+    ap.add_argument("--sources", default=",".join(sorted(d.sources)))
     ap.add_argument("--sheet-id", default=os.getenv("GOOGLE_SHEET_ID"), help="Google Sheet to upsert into")
-    ap.add_argument("--tab", default="Leads")
-    ap.add_argument("--out", default=str(ROOT / "output" / "leads"), help="local path prefix for .csv/.xlsx")
+    ap.add_argument("--tab", default=d.tab)
+    ap.add_argument("--out", default=d.out, help="local path prefix for .csv/.xlsx")
     ap.add_argument("--domains", nargs="*", default=[], help="extra Trustpilot domains to analyze")
-    ap.add_argument("--domains-file", default=str(ROOT / "config" / "watchlist.txt"))
-    ap.add_argument("--tp-pages", type=int, default=3, help="Trustpilot category pages per category")
-    ap.add_argument("--reddit-time", default="year", choices=["day", "week", "month", "year", "all"])
-    ap.add_argument("--min-score", type=int, default=30)
+    ap.add_argument("--domains-file", default=d.domains_file)
+    ap.add_argument("--tp-pages", type=int, default=d.tp_pages, help="Trustpilot category pages per category")
+    ap.add_argument("--reddit-time", default=d.reddit_time, choices=["day", "week", "month", "year", "all"])
+    ap.add_argument("--min-score", type=int, default=d.min_score)
     ap.add_argument("--no-enrich", action="store_true", help="skip website contact lookup")
-    ap.add_argument("--include-seed", action="store_true", help="merge data/seed_leads.csv into the output")
-    args = ap.parse_args()
+    ap.add_argument("--include-seed", action="store_true", help="merge the researched seed leads into the output")
+    a = ap.parse_args()
 
-    cfg = load_config()
-    s = session()
-    wanted = {x.strip() for x in args.sources.split(",") if x.strip()}
-    domains = list(args.domains)
-    if os.path.exists(args.domains_file):
-        domains += [ln.strip() for ln in open(args.domains_file) if ln.strip() and not ln.startswith("#")]
-
-    leads = []
-    if "trustpilot" in wanted:
-        leads += trustpilot.collect(s, cfg, pages=args.tp_pages, extra_domains=domains)
-    if "reddit" in wanted:
-        leads += reddit.collect(s, cfg, time_filter=args.reddit_time)
-    if "yelp" in wanted:
-        leads += yelp.collect(s, cfg)
-
-    for lead in leads:
-        lead.score = score(lead, cfg)
-    leads = [l for l in leads if l.score >= args.min_score]
-    if not args.no_enrich:
-        for lead in leads:
-            if lead.lead_type == "Pain" and lead.website:
-                enrich(s, lead)
-
-    rows = {}
-    for lead in sorted(leads, key=lambda l: l.score, reverse=True):
-        rows.setdefault(lead.key, lead.to_row(cfg))
-    if args.include_seed:
-        with open(ROOT / "data" / "seed_leads.csv", encoding="utf-8") as f:
-            seeds = list(csv.DictReader(f))
-        # A fresh scrape of the same company wins over the hand-researched seed row.
-        seen = {clean_domain(r["Website"]) or r["Company"].lower() for r in rows.values()}
-        for r in seeds:
-            if (clean_domain(r["Website"]) or r["Company"].lower()) not in seen:
-                rows.setdefault(r["Lead ID"], r)
-    rows = sorted(rows.values(), key=lambda r: int(r.get("Lead Score") or 0), reverse=True)
-
-    print(f"\n{len(rows)} leads "
-          f"({sum(r['Priority'] == 'Hot' for r in rows)} hot, {sum(r['Priority'] == 'Warm' for r in rows)} warm)")
-    write_csv(rows, Path(args.out + ".csv"))
-    # Leads with little recent complaint volume go to a separate tab rather than the main list.
-    main_rows = [r for r in rows if r.get("Recent Volume") != "Low"]
-    watch_rows = [r for r in rows if r.get("Recent Volume") == "Low"]
-    write_xlsx(main_rows, Path(args.out + ".xlsx"), extra_tabs={"Watchlist (low recent volume)": watch_rows})
-    print(f"wrote {args.out}.csv and {args.out}.xlsx")
-    if args.sheet_id:
-        print("google sheet:", write_google_sheet(rows, args.sheet_id, args.tab))
-
-    print("\nrequests per host:", STATS)
-    # Only the lead sources matter here; company websites refusing the contact lookup is normal.
-    blocked = [h for h in blocked_hosts() if any(k in h for k in ("trustpilot", "reddit", "yelp"))]
-    if blocked:
-        print(f"\n::error::Every request to {', '.join(blocked)} was refused (HTTP 401/403/429). "
-              "These sources produced no data this run. See README > 'If a source is blocked'.")
+    result = run(Options(
+        sources={x.strip() for x in a.sources.split(",") if x.strip()},
+        sheet_id=a.sheet_id, tab=a.tab, out=a.out, domains=a.domains, domains_file=a.domains_file,
+        tp_pages=a.tp_pages, reddit_time=a.reddit_time, min_score=a.min_score,
+        enrich=not a.no_enrich, include_seed=a.include_seed,
+    ))
+    if result.blocked:
+        print("::error::lead source blocked: " + ", ".join(result.blocked))
         sys.exit(2)
 
 

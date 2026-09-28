@@ -1,0 +1,223 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lead Finder</title>
+<style>
+  :root {
+    --bg: #f6f7f9; --panel: #fff; --text: #1b2330; --muted: #5c6878; --line: #e2e6ec;
+    --accent: #1f5fae; --accent-text: #fff; --high: #fbe0e3; --high-t: #8a1c2b;
+    --med: #fff1cc; --med-t: #7a5300; --low: #eceff3; --low-t: #4a5566; --ok: #dff3e4; --ok-t: #1d6b34;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #12161c; --panel: #1b2129; --text: #e6eaf0; --muted: #9aa6b5; --line: #2c3440;
+      --accent: #5b9bea; --accent-text: #0d1117; --high: #4a1f26; --high-t: #ffb3bd;
+      --med: #473a14; --med-t: #ffd978; --low: #2a313b; --low-t: #b8c2cf; --ok: #173a24; --ok-t: #8fe0a7;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+         font: 14px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  header { padding: 20px 24px 8px; display: flex; flex-wrap: wrap; gap: 12px; align-items: baseline; }
+  h1 { font-size: 20px; margin: 0; }
+  h2 { font-size: 15px; margin: 0 0 12px; }
+  .sub { color: var(--muted); }
+  main { padding: 8px 24px 40px; display: grid; gap: 16px; grid-template-columns: 340px minmax(0, 1fr); align-items: start; }
+  @media (max-width: 900px) { main { grid-template-columns: minmax(0, 1fr); padding: 8px 16px 32px; } header { padding: 16px; } }
+  .card { min-width: 0; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px; }
+  .stack { display: grid; gap: 16px; min-width: 0; }
+  label { display: flex; gap: 8px; align-items: center; margin: 6px 0; }
+  input[type=text], input[type=password], input[type=number], select {
+    width: 100%; padding: 7px 9px; border: 1px solid var(--line); border-radius: 6px;
+    background: var(--bg); color: var(--text); font: inherit; }
+  .field { margin: 8px 0; } .field span { display: block; color: var(--muted); font-size: 12px; margin-bottom: 3px; }
+  button { font: inherit; padding: 8px 14px; border-radius: 6px; border: 1px solid var(--line);
+           background: var(--panel); color: var(--text); cursor: pointer; }
+  button.primary { background: var(--accent); color: var(--accent-text); border-color: var(--accent); font-weight: 600; }
+  button:disabled { opacity: .55; cursor: default; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .chip { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 12px; background: var(--low); color: var(--low-t); }
+  .chip.ok { background: var(--ok); color: var(--ok-t); }
+  .chip.High, .chip.Hot { background: var(--high); color: var(--high-t); }
+  .chip.Medium, .chip.Warm { background: var(--med); color: var(--med-t); }
+  .alert { padding: 10px 12px; border-radius: 8px; background: var(--high); color: var(--high-t); margin-top: 10px; }
+  .note { padding: 10px 12px; border-radius: 8px; background: var(--ok); color: var(--ok-t); margin-top: 10px; }
+  pre { margin: 0; max-height: 240px; overflow: auto; font: 12px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace;
+        background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 10px; white-space: pre-wrap; }
+  .tablewrap { overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; min-width: 760px; }
+  th, td { text-align: left; padding: 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { font-size: 12px; color: var(--muted); font-weight: 600; white-space: nowrap; }
+  td.q { max-width: 380px; color: var(--muted); }
+  a { color: var(--accent); }
+  details summary { cursor: pointer; font-weight: 600; }
+  .muted { color: var(--muted); }
+</style>
+</head>
+<body>
+<header>
+  <h1>Lead Finder</h1>
+  <span class="sub">Brands whose customers are complaining about support in the last 6 months</span>
+</header>
+<main>
+  <div class="stack">
+    <section class="card">
+      <h2>Run</h2>
+      <label><input type="checkbox" name="src" value="trustpilot" checked> Trustpilot <span class="muted">(no key)</span></label>
+      <label><input type="checkbox" name="src" value="reddit" checked> Reddit <span id="k-reddit" class="chip">key?</span></label>
+      <label><input type="checkbox" name="src" value="yelp" checked> Yelp <span id="k-yelp" class="chip">key?</span></label>
+      <div class="field"><span>Trustpilot category pages per category (more = slower, more leads)</span>
+        <input id="tp_pages" type="number" min="1" max="20" value="3"></div>
+      <label><input id="include_seed" type="checkbox" checked> Include the researched leads</label>
+      <label><input id="enrich" type="checkbox" checked> Look up contact email/phone</label>
+      <label><input id="google_sheet" type="checkbox"> Update Google Sheet <span id="k-sheet" class="chip">not set</span></label>
+      <div class="row" style="margin-top:10px">
+        <button id="run" class="primary">Find leads</button>
+        <span id="state" class="muted"></span>
+      </div>
+      <div id="blocked"></div>
+    </section>
+
+    <section class="card">
+      <h2>Check one company</h2>
+      <div class="row">
+        <input id="domain" type="text" placeholder="e.g. uniuni.com" style="flex:1; min-width:0">
+        <button id="check">Check</button>
+      </div>
+      <div id="checkout"></div>
+    </section>
+
+    <section class="card">
+      <details>
+        <summary>Settings: API keys</summary>
+        <p class="muted">Saved to <code>.env</code> in this folder, on this computer only. Leave a box empty to keep the current value.</p>
+        <div class="field"><span>Reddit client ID</span><input id="REDDIT_CLIENT_ID" type="text" autocomplete="off"></div>
+        <div class="field"><span>Reddit client secret</span><input id="REDDIT_CLIENT_SECRET" type="password" autocomplete="off"></div>
+        <div class="field"><span>Yelp API key</span><input id="YELP_API_KEY" type="password" autocomplete="off"></div>
+        <div class="field"><span>Google Sheet ID</span><input id="GOOGLE_SHEET_ID" type="text" autocomplete="off"></div>
+        <div class="field"><span>Google service-account key file (path)</span><input id="GOOGLE_APPLICATION_CREDENTIALS" type="text" placeholder="service_account.json" autocomplete="off"></div>
+        <button id="save">Save keys</button> <span id="saved" class="muted"></span>
+      </details>
+    </section>
+  </div>
+
+  <div class="stack">
+    <section class="card">
+      <div class="row" style="justify-content:space-between">
+        <h2 style="margin:0">Leads <span id="count" class="muted"></span></h2>
+        <div class="row">
+          <select id="filter" style="width:auto">
+            <option value="">All</option><option value="High">High volume</option>
+            <option value="Medium">Medium volume</option><option value="Low">Watchlist (low)</option>
+            <option value="Intent">Reddit owners asking for help</option>
+          </select>
+          <a href="/download/leads.xlsx"><button>Download .xlsx</button></a>
+          <a href="/download/leads.csv"><button>.csv</button></a>
+        </div>
+      </div>
+      <div class="tablewrap" style="margin-top:12px">
+        <table>
+          <thead><tr><th>Company</th><th>Industry</th><th>Recent volume</th><th>Bad reviews (6 mo)</th>
+            <th>Latest</th><th>Score</th><th>Evidence</th><th>Contact</th></tr></thead>
+          <tbody id="rows"><tr><td colspan="8" class="muted">No results yet. Press "Find leads".</td></tr></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Run log</h2>
+      <pre id="log">Nothing has run yet.</pre>
+    </section>
+  </div>
+</main>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+let leads = [], polling = null;
+
+async function api(path, body) {
+  const opts = body ? { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) } : {};
+  const r = await fetch(path, opts);
+  return r.json();
+}
+
+function showKeys(k) {
+  const set = (id, ok, yes, no) => { $(id).textContent = ok ? yes : no; $(id).className = "chip" + (ok ? " ok" : ""); };
+  set("k-reddit", k.REDDIT_CLIENT_ID && k.REDDIT_CLIENT_SECRET, "key set", "no key");
+  set("k-yelp", k.YELP_API_KEY, "key set", "no key");
+  set("k-sheet", k.GOOGLE_SHEET_ID, "set", "not set");
+}
+
+function render() {
+  const f = $("filter").value;
+  const list = leads.filter(r => !f || (f === "Intent" ? r["Lead Type"] === "Intent" : r["Recent Volume"] === f));
+  $("count").textContent = `(${list.length})`;
+  $("rows").innerHTML = list.length ? list.map(r => `
+    <tr>
+      <td><strong>${esc(r.Company)}</strong><br><span class="muted">${esc(r.Source)}</span>
+          ${r.Website ? `<br><a href="${esc(r.Website)}" target="_blank" rel="noopener">${esc(r.Website.replace(/^https?:\/\//, ""))}</a>` : ""}</td>
+      <td>${esc(r.Industry)}</td>
+      <td>${r["Recent Volume"] ? `<span class="chip ${esc(r["Recent Volume"])}">${esc(r["Recent Volume"])}</span>` : ""}
+          ${r.Trend ? `<br><span class="muted">${esc(r.Trend)}</span>` : ""}</td>
+      <td>${esc(r["Bad Reviews (Last 6 Mo)"])}</td>
+      <td>${esc(r["Latest Bad Review"])}</td>
+      <td><span class="chip ${esc(r.Priority)}">${esc(r["Lead Score"])}</span></td>
+      <td class="q">${esc(r["Evidence Quote"]).slice(0, 220)} <a href="${esc(r["Evidence URL"])}" target="_blank" rel="noopener">source</a></td>
+      <td>${esc(r["Contact Email"])}${r["Contact Phone"] ? "<br>" + esc(r["Contact Phone"]) : ""}</td>
+    </tr>`).join("") : `<tr><td colspan="8" class="muted">No leads match this filter.</td></tr>`;
+}
+
+async function loadLeads() { leads = await api("/api/leads"); render(); }
+
+async function refresh() {
+  const s = await api("/api/status");
+  showKeys(s.keys);
+  if (s.log.length) { $("log").textContent = s.log.join("\n"); $("log").scrollTop = $("log").scrollHeight; }
+  $("run").disabled = s.running;
+  $("state").textContent = s.running ? `Running since ${s.started}…` : (s.finished ? `Finished ${s.finished}. ${s.summary}` : "");
+  $("blocked").innerHTML =
+    (s.error ? `<div class="alert">Run failed: ${esc(s.error)}</div>` : "") +
+    (s.blocked.length ? `<div class="alert">Blocked by ${esc(s.blocked.join(", "))}: every request was refused, so this run has no new data from that source. For Reddit/Yelp add keys in Settings; for Trustpilot, check you're not on a VPN or cloud machine.</div>` : "");
+  if (!s.running && polling) { clearInterval(polling); polling = null; loadLeads(); }
+  return s;
+}
+
+$("run").onclick = async () => {
+  const sources = [...document.querySelectorAll("input[name=src]:checked")].map(i => i.value);
+  const r = await api("/api/run", { sources, tp_pages: +$("tp_pages").value, include_seed: $("include_seed").checked,
+                                    enrich: $("enrich").checked, google_sheet: $("google_sheet").checked });
+  if (r.error) { $("state").textContent = r.error; return; }
+  $("log").textContent = "Starting…";
+  polling = setInterval(refresh, 2000); refresh();
+};
+
+$("check").onclick = async () => {
+  const d = $("domain").value.trim(); if (!d) return;
+  $("check").disabled = true; $("checkout").innerHTML = `<p class="muted">Reading ${esc(d)}'s 1–2★ reviews…</p>`;
+  const r = await api("/api/trustpilot?domain=" + encodeURIComponent(d));
+  $("check").disabled = false;
+  if (r.error) { $("checkout").innerHTML = `<div class="alert">${esc(r.error)}</div>`; return; }
+  if (!r.found) { $("checkout").innerHTML = `<div class="note">${esc(r.note)}</div>`; return; }
+  const l = r.lead;
+  $("checkout").innerHTML = `<div class="note"><strong>${esc(l.Company)}</strong>: ${esc(l["Bad Reviews (Last 6 Mo)"])} bad reviews in 6 months
+    (prior 6: ${esc(l["Bad Reviews (Prior 6 Mo)"] || "?")}, ${esc(l.Trend || "no trend")}). Rating ${esc(l.Rating)}, score ${esc(l["Lead Score"])}.
+    <br>${esc(l["Evidence Quote"]).slice(0, 200)}</div>`;
+};
+
+$("save").onclick = async () => {
+  const body = {};
+  ["REDDIT_CLIENT_ID","REDDIT_CLIENT_SECRET","YELP_API_KEY","GOOGLE_SHEET_ID","GOOGLE_APPLICATION_CREDENTIALS"]
+    .forEach(k => { if ($(k).value.trim()) body[k] = $(k).value.trim(); $(k).value = ""; });
+  const r = await api("/api/settings", body);
+  showKeys(r.keys); $("saved").textContent = "Saved.";
+};
+
+$("filter").onchange = render;
+refresh().then(s => { if (s.running) polling = setInterval(refresh, 2000); });
+loadLeads();
+</script>
+</body>
+</html>

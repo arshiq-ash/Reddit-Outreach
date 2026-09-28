@@ -4,6 +4,28 @@ Finds brands whose customers are publicly complaining about unreachable or slow 
 business owners who are asking for support help. Leads are scored, matched to the closest
 [OptiFlowCX portfolio](https://optiflowcx.com/portfolio) case study and written to a Google Sheet.
 
+## Quick start: the Lead Finder app (runs on your computer)
+
+Trustpilot and Reddit block cloud servers such as GitHub Actions, so the reliable way to collect
+leads is the local app. It runs on your own computer and your normal internet connection.
+
+1. Install Python 3.10+ from python.org. On Windows, tick "Add Python to PATH".
+2. Download this repo: **Code → Download ZIP**, then unzip it.
+3. Double-click **`start.bat`** on Windows or **`start.command`** on Mac. The first start installs
+   everything, then opens **http://localhost:8000** in your browser.
+4. Optional: open **Settings: API keys** in the app and paste your Reddit and Yelp keys. They are
+   saved to `.env` on your computer only. Without keys, those two sources are skipped.
+5. Press **Find leads**. Watch the run log. When it finishes, the table fills in and
+   **Download .xlsx** gives you the sheet with the Leads and Watchlist tabs.
+
+**Check one company** reads a single company's Trustpilot reviews, e.g. `uniuni.com`, and shows its
+6-month bad-review count and trend.
+
+To run it every morning, keep the app open and start it with `start.bat --daily 07:30`
+(or `./start.command --daily 07:30`).
+The app only listens on `127.0.0.1`, so nobody else on your network can reach it. Turn off any VPN
+if Trustpilot shows as blocked.
+
 ## Target industries (from the portfolio)
 
 | Industry | Proof point | What we sell them |
