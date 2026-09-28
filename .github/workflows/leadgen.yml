@@ -29,6 +29,7 @@ jobs:
           YELP_API_KEY: ${{ secrets.YELP_API_KEY }}
         run: python -m leadgen --sources "${{ github.event.inputs.sources || 'reddit,trustpilot,yelp' }}" --include-seed
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: leads
           path: output/

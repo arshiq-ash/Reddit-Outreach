@@ -6,7 +6,9 @@ import csv
 import os
 from pathlib import Path
 
-from .common import ROOT, clean_domain, load_config, session
+import sys
+
+from .common import ROOT, STATS, blocked_hosts, clean_domain, load_config, session
 from .enrich import enrich
 from .output import write_csv, write_google_sheet, write_xlsx
 from .scoring import score
@@ -74,6 +76,14 @@ def main() -> None:
     print(f"wrote {args.out}.csv and {args.out}.xlsx")
     if args.sheet_id:
         print("google sheet:", write_google_sheet(rows, args.sheet_id, args.tab))
+
+    print("\nrequests per host:", STATS)
+    # Only the lead sources matter here; company websites refusing the contact lookup is normal.
+    blocked = [h for h in blocked_hosts() if any(k in h for k in ("trustpilot", "reddit", "yelp"))]
+    if blocked:
+        print(f"\n::error::Every request to {', '.join(blocked)} was refused (HTTP 401/403/429). "
+              "These sources produced no data this run. See README > 'If a source is blocked'.")
+        sys.exit(2)
 
 
 if __name__ == "__main__":

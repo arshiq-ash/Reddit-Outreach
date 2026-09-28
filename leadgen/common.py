@@ -40,6 +40,21 @@ def session() -> requests.Session:
     return s
 
 
+# Per-host request outcomes, so a run can tell "no leads" apart from "blocked".
+STATS: dict[str, dict[str, int]] = {}
+
+
+def _record(url: str, outcome: str) -> None:
+    host = re.sub(r"^https?://", "", url).split("/")[0]
+    STATS.setdefault(host, {}).setdefault(outcome, 0)
+    STATS[host][outcome] += 1
+
+
+def blocked_hosts() -> list[str]:
+    """Hosts that answered every request with 401/403/429 (bot protection / missing credentials)."""
+    return [h for h, c in STATS.items() if not c.get("ok") and c.get("blocked")]
+
+
 def get(s: requests.Session, url: str, *, params=None, headers=None, tries: int = 3, delay: float = 1.5):
     """GET with polite pacing and exponential backoff on 429/5xx. Returns Response or None."""
     for attempt in range(tries):
@@ -49,12 +64,15 @@ def get(s: requests.Session, url: str, *, params=None, headers=None, tries: int 
             print(f"  ! {url}: {e}")
             r = None
         if r is not None and r.status_code == 200:
+            _record(url, "ok")
             time.sleep(delay)
             return r
         if r is not None and r.status_code not in (429, 500, 502, 503, 504):
+            _record(url, "blocked" if r.status_code in (401, 403) else "error")
             print(f"  ! {url}: HTTP {r.status_code}")
             return None
         time.sleep(delay * 2 ** (attempt + 1))
+    _record(url, "blocked" if r is not None and r.status_code == 429 else "error")
     return None
 
 

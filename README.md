@@ -77,6 +77,17 @@ python -m leadgen --sources reddit --reddit-time week
 Without `GOOGLE_SHEET_ID`, it writes only `output/leads.csv` and `output/leads.xlsx`. You can import
 either one into Google Sheets with **File → Import**.
 
+## If a source is blocked
+
+The run fails with `Every request to … was refused` when a site blocks the machine it runs on.
+Other sources, and the sheet, are still written.
+
+| Source | What blocks it | Fix |
+|---|---|---|
+| Reddit | Anonymous requests from cloud IPs (GitHub Actions) get HTTP 403 | Add `REDDIT_CLIENT_ID` / `REDDIT_CLIENT_SECRET`, since the official API is allowed from anywhere |
+| Yelp | No key | Add `YELP_API_KEY` |
+| Trustpilot | Bot protection returns HTTP 403 to data-centre IPs, including GitHub Actions | Run it from a normal home or office connection (`python -m leadgen`), or route it through a scraping proxy |
+
 ## Seed leads (researched 26 Sep 2026)
 `data/seed_leads.xlsx` holds 19 leads with **High** or **Medium** complaint volume in the last 6
 months. Its *Watchlist* tab (`data/seed_watchlist.csv`) holds 12 more with low or undated recent
