@@ -74,7 +74,11 @@ def write_google_sheet(rows: list[dict], sheet_id: str, tab: str = "Leads") -> s
     Auth: GOOGLE_SERVICE_ACCOUNT_JSON (the key file's JSON content) or GOOGLE_APPLICATION_CREDENTIALS
     (a path). Share the sheet with the service account's email as Editor.
     """
-    import gspread
+    try:
+        import gspread
+    except ImportError:
+        raise RuntimeError("Google Sheets support isn't installed. Run: pip install -r requirements-sheets.txt "
+                           "(or leave 'Update Google Sheet' unticked and use Download .xlsx)") from None
 
     raw = os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON")
     gc = gspread.service_account_from_dict(json.loads(raw)) if raw else gspread.service_account(

@@ -89,7 +89,7 @@ Re-runs **upsert** rows by Lead ID. `Status`, `Notes` and `Date Found` keep your
 
 ### Run locally
 ```bash
-pip install -r requirements.txt
+pip install -r requirements.txt   # add -r requirements-sheets.txt for Google Sheets upload
 export GOOGLE_SHEET_ID=... GOOGLE_APPLICATION_CREDENTIALS=service_account.json
 export REDDIT_CLIENT_ID=... REDDIT_CLIENT_SECRET=... YELP_API_KEY=...
 python -m leadgen --include-seed                  # all sources → sheet + output/leads.{csv,xlsx}

@@ -1,0 +1,3 @@
+# Only needed to push results straight into a Google Sheet (optional).
+gspread>=6.0
+google-auth>=2.20
