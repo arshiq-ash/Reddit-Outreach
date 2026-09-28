@@ -23,7 +23,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
 from .common import ENV_KEYS, ROOT, STATS, load_config, load_env, save_env, session
-from .pipeline import LEAD_SOURCES, Options, run
+from .pipeline import LEAD_SOURCES, SEED_FILES, Options, run
 from .scoring import score
 from .sources import trustpilot
 
@@ -95,11 +95,15 @@ JOB = Job()
 
 
 def read_leads() -> list[dict]:
-    path = Path(str(OUT) + ".csv")
-    if not path.exists():
-        return []
-    with open(path, encoding="utf-8") as f:
-        return list(csv.DictReader(f))
+    """Latest run's leads; before the first run, the researched seed leads."""
+    paths = [Path(str(OUT) + ".csv")]
+    if not paths[0].exists():
+        paths = [p for p in SEED_FILES if p.exists()]
+    rows = []
+    for path in paths:
+        with open(path, encoding="utf-8") as f:
+            rows += list(csv.DictReader(f))
+    return rows
 
 
 def key_status() -> dict:
@@ -174,16 +178,25 @@ class Handler(BaseHTTPRequestHandler):
             domain = (parse_qs(url.query).get("domain") or [""])[0].strip()
             if not domain:
                 return self._json({"error": "domain is required"}, 400)
+            if "." not in domain:
+                return self._json({"domain": domain, "found": False, "note":
+                                   f"Enter the company's website, e.g. {domain}.com, not just its name."})
             cfg = load_config()
             before = dict(STATS.get("www.trustpilot.com", {}))
             lead = trustpilot.analyze_domain(session(), domain, cfg)
             after = STATS.get("www.trustpilot.com", {})
+            grew = lambda k: after.get(k, 0) > before.get(k, 0)  # noqa: E731
             if not lead:
-                if after.get("blocked", 0) > before.get("blocked", 0) or after.get("error", 0) > before.get("error", 0):
-                    note = ("Trustpilot refused or couldn't be reached from this computer. "
-                            "Turn off any VPN and try again; the terminal shows the HTTP status.")
+                if grew("blocked"):
+                    note = ("Trustpilot refused this computer (HTTP 403). Turn off any VPN and try again; "
+                            "if it persists, Trustpilot is blocking your connection.")
+                elif grew("error") and not grew("ok"):
+                    note = "Couldn't reach Trustpilot. Check your internet connection; the terminal shows the error."
+                elif grew("notfound") and not grew("ok"):
+                    note = (f"No Trustpilot page for {domain}. Check the spelling, or search the company on "
+                            "trustpilot.com and use the domain shown in its page address.")
                 else:
-                    note = "Fewer than 5 bad reviews in the last 6 months, or the company isn't on Trustpilot."
+                    note = "Found on Trustpilot, but fewer than 5 bad reviews in the last 6 months."
                 return self._json({"domain": domain, "found": False, "note": note})
             lead.score = score(lead, cfg)
             self._json({"domain": domain, "found": True, "lead": lead.to_row(cfg)})

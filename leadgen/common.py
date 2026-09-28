@@ -114,7 +114,7 @@ def get(s: requests.Session, url: str, *, params=None, headers=None, tries: int 
             time.sleep(delay)
             return r
         if r is not None and r.status_code not in (429, 500, 502, 503, 504):
-            _record(url, "blocked" if r.status_code in (401, 403) else "error")
+            _record(url, {401: "blocked", 403: "blocked", 404: "notfound"}.get(r.status_code, "error"))
             print(f"  ! {url}: HTTP {r.status_code}")
             return None
         time.sleep(delay * 2 ** (attempt + 1))

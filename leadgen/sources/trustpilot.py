@@ -5,7 +5,7 @@ HTML scraping or headless browser is needed.
 """
 from __future__ import annotations
 
-from ..common import (Lead, clean_domain, find_phrases, get, guess_industry, months_ago,
+from ..common import (STATS, Lead, clean_domain, find_phrases, get, guess_industry, months_ago,
                       next_data, parse_date)
 
 BASE = "https://www.trustpilot.com"
@@ -42,8 +42,25 @@ def _bad_reviews(s, domain: str, max_pages: int):
             return
 
 
+def trustpilot_slug(value: str) -> str:
+    """'https://www.UniUni.com/track' -> 'www.uniuni.com' (Trustpilot pages are keyed by domain)."""
+    return value.strip().lower().removeprefix("https://").removeprefix("http://").split("/")[0]
+
+
 def analyze_domain(s, domain: str, cfg: dict, industry_key: str | None = None,
                    max_pages: int = 15) -> Lead | None:
+    """Try the domain as given, then with/without 'www.' (Trustpilot lists some companies either way)."""
+    domain = trustpilot_slug(domain)
+    alt = domain[4:] if domain.startswith("www.") else "www." + domain
+    for candidate in (domain, alt):
+        before = STATS.get("www.trustpilot.com", {}).get("notfound", 0)
+        lead = _analyze(s, candidate, cfg, industry_key, max_pages)
+        if lead or STATS.get("www.trustpilot.com", {}).get("notfound", 0) == before:
+            return lead  # found, or failed for a reason other than "no such page"
+    return None
+
+
+def _analyze(s, domain: str, cfg: dict, industry_key: str | None, max_pages: int) -> Lead | None:
     """Count a business's 1–2★ reviews in the last 6 months (key indicator) and the 6 before."""
     six, twelve = months_ago(6), months_ago(12)
     bu, recent, prior, oldest, exhausted = {}, [], 0, None, True
